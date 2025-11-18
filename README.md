@@ -1,12 +1,13 @@
-# \# Build and deploy flutter-fastlane local
+# Docker Images for [Flutter](https://flutter.dev/)
 
-# docker build -t flutter-fastlane:3.35.7 .
+You can either use it in CI or run locally via Docker:
 
-# \# Tag image for Docker Hub
+```bash
+docker pull ghcr.io/datnguyencr/flutter-fastlane:3.38.1
+```
 
-# docker tag flutter-fastlane:3.35.7 datnguyencr/flutter-fastlane:3.35.7
+The example above simply mount current working directory and runs `flutter test`
 
-# \# Push image to Docker Hub
+## GitHub Container Registry
 
-# docker push datnguyencr/flutter-fastlane:3.35.7
-
+https://github.com/datnguyencr/flutter-fastlane/pkgs/container/flutter-fastlane/versions
