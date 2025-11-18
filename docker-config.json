@@ -1,0 +1,9 @@
+{
+  "flutter_version": "3.32.5",
+  "openjdk_version": "17",
+  "build_tools_version": "36.1.0",
+  "android_platform": "android-36.1",
+  "cmake_version": "3.22.1",
+  "ndk_version": "27.0.12077973",
+  "docker_tag": "3.32.5"
+}
