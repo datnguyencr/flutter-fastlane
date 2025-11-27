@@ -8,15 +8,16 @@ for /f "tokens=2-4 delims=/.- " %%a in ('date /t') do (
     set DD=%%b
 )
 
-REM --- Get current time in HHMM format ---
-for /f "tokens=1-2 delims=: " %%a in ('time /t') do (
-    set HH=%%a
-    set MIN=%%b
-)
+REM --- Get current time in HHMMSSCC format (CC = hundredths of a second) ---
+for /f "tokens=1 delims=." %%a in ("%time: =0%") do set T=%%a
+set HH=%T:~0,2%
+set MIN=%T:~3,2%
+set SEC=%T:~6,2%
+set MS=%T:~9,2%
 
 REM --- Set Flutter version and Docker tag dynamically ---
 set FLUTTER_BASE=3.32.0
-set FLUTTER_VER=%FLUTTER_BASE%.%YYYY%%MM%%DD%
+set FLUTTER_VER=%FLUTTER_BASE%.%YYYY%%MM%%DD%%HH%%MIN%%SEC%%MS%
 set DOCKER_TAG=%FLUTTER_VER%
 
 echo -----------------------------

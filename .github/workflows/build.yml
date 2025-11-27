@@ -8,7 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build Docker for Flutter ${{ env.FLUTTER_VERSION }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
