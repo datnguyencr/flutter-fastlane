@@ -20,7 +20,7 @@ jobs:
 
       - name: Load Docker config
         run: |
-          FLUTTER_VERSION=$(jq -r '.flutter_version' docker-config.json)
+          FLUTTER_VERSION=$(jq -r '.flutter_version' docker_config.json)
           DOCKER_TAG=$FLUTTER_VERSION
           echo "FLUTTER_VERSION=$FLUTTER_VERSION" >> $GITHUB_ENV
           echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
