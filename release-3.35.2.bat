@@ -16,7 +16,7 @@ set SEC=%T:~6,2%
 set MS=%T:~9,2%
 
 REM --- Set Flutter version and Docker tag dynamically ---
-set FLUTTER_BASE=3.32.0
+set FLUTTER_BASE=3.35.2
 set FLUTTER_VER=%FLUTTER_BASE%.%YYYY%%MM%%DD%%HH%%MIN%%SEC%%MS%
 set DOCKER_TAG=%FLUTTER_VER%
 

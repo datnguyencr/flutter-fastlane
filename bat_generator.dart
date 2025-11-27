@@ -1,3 +1,25 @@
+import 'dart:convert';
+import 'dart:io';
+
+void main() {
+  final jsonFile = File('flutter_versions.json');
+
+  if (!jsonFile.existsSync()) {
+    print('flutter_versions.json not found!');
+    return;
+  }
+
+  final jsonContent = jsonFile.readAsStringSync();
+  final data = jsonDecode(jsonContent) as Map<String, dynamic>;
+
+  final versions = List<String>.from(data['versions'] ?? []);
+  if (versions.isEmpty) {
+    print('No versions found in JSON!');
+    return;
+  }
+
+  for (final version in versions) {
+    final batchContent = '''
 @echo off
 setlocal enabledelayedexpansion
 
@@ -16,7 +38,7 @@ set SEC=%T:~6,2%
 set MS=%T:~9,2%
 
 REM --- Set Flutter version and Docker tag dynamically ---
-set FLUTTER_BASE=3.32.0
+set FLUTTER_BASE=$version
 set FLUTTER_VER=%FLUTTER_BASE%.%YYYY%%MM%%DD%%HH%%MIN%%SEC%%MS%
 set DOCKER_TAG=%FLUTTER_VER%
 
@@ -42,3 +64,10 @@ git tag -a v%DOCKER_TAG% -m "Release %DOCKER_TAG%"
 git push origin v%DOCKER_TAG%
 
 echo Done! Tag v%DOCKER_TAG% pushed.
+''';
+
+    final batFile = File('release-$version.bat');
+    batFile.writeAsStringSync(batchContent);
+    print('release-$version.bat generated successfully');
+  }
+}
