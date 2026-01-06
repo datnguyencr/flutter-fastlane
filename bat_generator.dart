@@ -1,20 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-void main() {
-  final jsonFile = File('flutter_versions.json');
+const releasesUrl =
+    'https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json';
 
-  if (!jsonFile.existsSync()) {
-    print('flutter_versions.json not found!');
-    return;
-  }
+void main() async {
+  final versions = await fetchStableVersions(minVersion: '3.32.0');
 
-  final jsonContent = jsonFile.readAsStringSync();
-  final data = jsonDecode(jsonContent) as Map<String, dynamic>;
-
-  final versions = List<String>.from(data['versions'] ?? []);
   if (versions.isEmpty) {
-    print('No versions found in JSON!');
+    print('No stable versions found >= 3.32.0');
     return;
   }
 
@@ -68,6 +62,66 @@ echo Done! Tag v%DOCKER_TAG% pushed.
 
     final batFile = File('release-$version.bat');
     batFile.writeAsStringSync(batchContent);
-    print('release-$version.bat generated successfully');
+    print('release-$version.bat generated');
   }
+}
+
+Future<List<String>> fetchStableVersions({required String minVersion}) async {
+  final client = HttpClient();
+  final request = await client.getUrl(Uri.parse(releasesUrl));
+  final response = await request.close();
+
+  if (response.statusCode != 200) {
+    throw Exception('Failed to fetch Flutter releases');
+  }
+
+  final body = await response.transform(utf8.decoder).join();
+  final data = jsonDecode(body) as Map<String, dynamic>;
+  final releases = data['releases'] as List<dynamic>;
+
+  final minParts = parseVersion(minVersion);
+
+  final versions = releases
+      .where((r) => r['channel'] == 'stable')
+      .map((r) => r['version'] as String)
+      .where((v) => compareVersions(v, minParts) >= 0)
+      .toSet() // remove duplicates
+      .toList();
+
+  versions.sort(compareVersionStringsDesc);
+  return versions;
+}
+
+/// Safely parse versions like:
+///  - 3.32.0
+///  - v1.22.6
+List<int> parseVersion(String version) {
+  final clean = version.trim().replaceFirst(RegExp(r'^v'), '');
+  return clean
+      .split('.')
+      .map((p) => int.tryParse(p) ?? 0)
+      .toList();
+}
+
+int compareVersions(String v, List<int> minParts) {
+  final parts = parseVersion(v);
+
+  for (var i = 0; i < minParts.length; i++) {
+    final a = i < parts.length ? parts[i] : 0;
+    final b = minParts[i];
+    if (a != b) return a.compareTo(b);
+  }
+  return 0;
+}
+
+int compareVersionStringsDesc(String a, String b) {
+  final pa = parseVersion(a);
+  final pb = parseVersion(b);
+
+  for (var i = 0; i < 3; i++) {
+    final x = i < pa.length ? pa[i] : 0;
+    final y = i < pb.length ? pb[i] : 0;
+    if (x != y) return y.compareTo(x);
+  }
+  return 0;
 }
