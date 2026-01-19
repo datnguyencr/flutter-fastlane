@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  schedule:
+    - cron: '0 0 * * *' # Every day at midnight
+  workflow_dispatch: # Allow manual trigger
 
 permissions:
   contents: write
@@ -14,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -21,20 +26,51 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Load Docker config
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Determine Target Version
+        id: target
         run: |
-          # Tag format: v<flutter_version>.<timestamp>
-          # Example: v3.38.7.20260119102507
-          FULL_TAG=${GITHUB_REF_NAME#v}
-          FLUTTER_VERSION=$(echo $FULL_TAG | cut -d'.' -f1-3)
-          DOCKER_TAG=${FULL_TAG}
-          
-          echo "FLUTTER_VERSION=$FLUTTER_VERSION" >> $GITHUB_ENV
-          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
-          
-          echo "Building for Flutter: $FLUTTER_VERSION with tag: $DOCKER_TAG"
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            # Tag format: v<flutter_version>.<timestamp>
+            FULL_TAG=${GITHUB_REF_NAME#v}
+            FLUTTER_VERSION=$(echo $FULL_TAG | cut -d'.' -f1-3)
+            DOCKER_TAG=${FULL_TAG}
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "source=tag" >> $GITHUB_OUTPUT
+          else
+            # Cron or Manual: Check for new releases
+            NEW_VER=$(dart scripts/check_versions.dart)
+            if [[ $NEW_VER == NEW_VERSION=* ]]; then
+              VERSION=${NEW_VER#NEW_VERSION=}
+              TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+              echo "found=true" >> $GITHUB_OUTPUT
+              echo "source=auto" >> $GITHUB_OUTPUT
+              echo "version=$VERSION" >> $GITHUB_OUTPUT
+              echo "docker_tag=${VERSION}.${TIMESTAMP}" >> $GITHUB_OUTPUT
+            else
+              echo "found=false" >> $GITHUB_OUTPUT
+              echo "No new version to build."
+            fi
+          fi
+
+      - name: Set Environment Variables
+        if: steps.target.outputs.found == 'true'
+        run: |
+          if [[ "${{ steps.target.outputs.source }}" == "tag" ]]; then
+            # From tag push
+            FULL_TAG=${GITHUB_REF_NAME#v}
+            echo "FLUTTER_VERSION=$(echo $FULL_TAG | cut -d'.' -f1-3)" >> $GITHUB_ENV
+            echo "DOCKER_TAG=$FULL_TAG" >> $GITHUB_ENV
+          else
+            # From auto check
+            echo "FLUTTER_VERSION=${{ steps.target.outputs.version }}" >> $GITHUB_ENV
+            echo "DOCKER_TAG=${{ steps.target.outputs.docker_tag }}" >> $GITHUB_ENV
+          fi
 
       - name: Generate Dockerfile
+        if: steps.target.outputs.found == 'true'
         run: |
           cat <<EOF > Dockerfile
           # Use a dynamic Flutter version from the config
@@ -77,6 +113,7 @@ jobs:
           EOF
 
       - name: Login to GHCR
+        if: steps.target.outputs.found == 'true'
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
@@ -84,6 +121,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build and push Docker image
+        if: steps.target.outputs.found == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -91,3 +129,19 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/flutter-fastlane:${{ env.DOCKER_TAG }}
           build-args: |
             FLUTTER_VERSION=${{ env.FLUTTER_VERSION }}
+
+      - name: Post-Build Release (Auto-Release only)
+        if: steps.target.outputs.found == 'true' && steps.target.outputs.source == 'auto'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Update docker_config.json
+          echo "{\"flutter_version\": \"${{ env.FLUTTER_VERSION }}\", \"docker_tag\": \"${{ env.DOCKER_TAG }}\"}" > docker_config.json
+          git add docker_config.json
+          git commit -m "Auto-release: ${{ env.DOCKER_TAG }}"
+          git push
+          
+          # Tag and push
+          git tag -a "v${{ env.DOCKER_TAG }}" -m "Auto-release ${{ env.DOCKER_TAG }}"
+          git push origin "v${{ env.DOCKER_TAG }}"
