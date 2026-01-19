@@ -86,13 +86,10 @@ jobs:
         if: steps.target.outputs.found == 'true'
         run: |
           cat <<EOF > Dockerfile
-          # Use a dynamic Flutter version from the config
           ARG FLUTTER_VERSION=${{ env.FLUTTER_VERSION }}
           FROM ghcr.io/cirruslabs/flutter:\${FLUTTER_VERSION}
-
           LABEL org.opencontainers.image.source="https://github.com/${{ github.repository }}"
           LABEL org.opencontainers.image.description="Flutter and Fastlane build environment"
-
           ENV LC_ALL=C.UTF-8 \
               LANG=C.UTF-8 \
               ANDROID_SDK_ROOT=/opt/android-sdk-linux \
@@ -100,29 +97,20 @@ jobs:
               PATH=\$PATH:\$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:\$ANDROID_SDK_ROOT/platform-tools \
               DEBIAN_FRONTEND=noninteractive
 
-          # Consolidate installations and cleanup to reduce image size
-          RUN apt-get update && \
-              apt-get install -y --no-install-recommends \
-                  ruby ruby-dev git wget unzip ca-certificates curl xz-utils zip \
-                  openjdk-17-jre-headless && \
-              gem install fastlane -NV && \
-              yes | sdkmanager --licenses && \
-              sdkmanager --install \
-                  "platform-tools" \
-                  "build-tools;35.0.0" \
-                  "platforms;android-35" \
-                  "cmake;3.22.1" \
-                  "ndk;27.0.12077973" && \
-              flutter config --no-analytics && \
-              flutter precache --android --ios --no-web && \
-              # Aggressive Cleanup
-              apt-get purge -y ruby-dev && \
-              apt-get autoremove -y && \
-              apt-get clean && \
-              rm -rf $ANDROID_SDK_ROOT/emulator $ANDROID_SDK_ROOT/system-images $ANDROID_SDK_ROOT/patcher $ANDROID_SDK_ROOT/extras && \
-              rm -rf /usr/lib/ruby/gems/*/cache /root/.pub-cache && \
-              rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache /usr/share/doc /usr/share/man
-
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+          ruby ruby-dev git wget unzip ca-certificates curl xz-utils zip \
+          openjdk-17-jre-headless && \
+          gem install fastlane -NV && \
+          yes | sdkmanager --licenses && \
+          sdkmanager --install "platform-tools" "build-tools;35.0.0" "platforms;android-35" "cmake;3.22.1" "ndk;27.0.12077973" && \
+          flutter config --no-analytics && \
+          flutter precache --android --ios --no-web && \
+          apt-get purge -y ruby-dev && \
+          apt-get autoremove -y && \
+          apt-get clean && \
+          rm -rf \$ANDROID_SDK_ROOT/emulator \$ANDROID_SDK_ROOT/system-images \$ANDROID_SDK_ROOT/patcher \$ANDROID_SDK_ROOT/extras && \
+          rm -rf /usr/lib/ruby/gems/*/cache /root/.pub-cache && \
+          rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache /usr/share/doc /usr/share/man
           WORKDIR /app
           CMD ["bash"]
           EOF
