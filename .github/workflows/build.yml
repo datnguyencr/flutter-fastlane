@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: '0 0 * * *' # Every day at midnight
   workflow_dispatch: # Allow manual trigger
+    inputs:
+      version:
+        description: 'Flutter version to build (e.g., 3.35.0). Leave empty for latest stable.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -39,8 +44,16 @@ jobs:
             DOCKER_TAG=${FULL_TAG}
             echo "found=true" >> $GITHUB_OUTPUT
             echo "source=tag" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.version }}" != "" ]]; then
+            # Manual trigger with specific version
+            VERSION=${{ github.event.inputs.version }}
+            TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "source=auto" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "docker_tag=${VERSION}.${TIMESTAMP}" >> $GITHUB_OUTPUT
           else
-            # Cron or Manual: Check for new releases
+            # Cron or Manual without version: Check for new releases
             NEW_VER=$(dart scripts/check_versions.dart)
             if [[ $NEW_VER == NEW_VERSION=* ]]; then
               VERSION=${NEW_VER#NEW_VERSION=}
@@ -102,7 +115,12 @@ jobs:
                   "ndk;27.0.12077973" && \
               flutter config --no-analytics && \
               flutter precache --android --ios --no-web && \
+              # Aggressive Cleanup
+              apt-get purge -y ruby-dev && \
+              apt-get autoremove -y && \
               apt-get clean && \
+              rm -rf $ANDROID_SDK_ROOT/emulator $ANDROID_SDK_ROOT/system-images $ANDROID_SDK_ROOT/patcher $ANDROID_SDK_ROOT/extras && \
+              rm -rf /usr/lib/ruby/gems/*/cache /root/.pub-cache && \
               rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache /usr/share/doc /usr/share/man
 
           WORKDIR /app
@@ -123,9 +141,13 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/flutter-fastlane:${{ env.DOCKER_TAG }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/flutter-fastlane:${{ env.FLUTTER_VERSION }}
+            ghcr.io/${{ github.repository_owner }}/flutter-fastlane:${{ env.DOCKER_TAG }}
           build-args: |
             FLUTTER_VERSION=${{ env.FLUTTER_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Post-Build Release (Auto-Release only)
         if: steps.target.outputs.found == 'true' && steps.target.outputs.source == 'auto'
