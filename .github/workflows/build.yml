@@ -93,7 +93,6 @@ jobs:
                   ruby ruby-dev git wget unzip ca-certificates curl xz-utils zip \
                   openjdk-17-jre-headless && \
               gem install fastlane -NV && \
-              # Install Android components
               yes | sdkmanager --licenses && \
               sdkmanager --install \
                   "platform-tools" \
@@ -101,10 +100,8 @@ jobs:
                   "platforms;android-35" \
                   "cmake;3.22.1" \
                   "ndk;27.0.12077973" && \
-              # Flutter configuration
               flutter config --no-analytics && \
               flutter precache --android --ios --no-web && \
-              # Final cleanup
               apt-get clean && \
               rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache /usr/share/doc /usr/share/man
 
