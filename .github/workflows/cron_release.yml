@@ -1,0 +1,45 @@
+name: Auto Check Flutter Updates
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Every day at midnight
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Needed to see all tags
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Check for new versions
+        id: check
+        run: |
+          NEW_VER=$(dart scripts/check_versions.dart)
+          if [[ $NEW_VER == NEW_VERSION=* ]]; then
+            VERSION=${NEW_VER#NEW_VERSION=}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Release
+        if: steps.check.outputs.found == 'true'
+        run: |
+          VERSION=${{ steps.check.outputs.version }}
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+          DOCKER_TAG="${VERSION}.${TIMESTAMP}"
+          
+          echo "Triggering release for tag: v$DOCKER_TAG"
+          
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git tag -a "v$DOCKER_TAG" -m "Auto-release $DOCKER_TAG"
+          git push origin "v$DOCKER_TAG"

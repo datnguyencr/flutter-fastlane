@@ -20,39 +20,54 @@ jobs:
 
       - name: Load Docker config
         run: |
-          FLUTTER_VERSION=$(jq -r '.flutter_version' docker_config.json)
-          DOCKER_TAG=$FLUTTER_VERSION
+          # Tag format: v<flutter_version>.<timestamp>
+          # Example: v3.38.7.20260119102507
+          FULL_TAG=${GITHUB_REF_NAME#v}
+          FLUTTER_VERSION=$(echo $FULL_TAG | cut -d'.' -f1-3)
+          DOCKER_TAG=${FULL_TAG}
+          
           echo "FLUTTER_VERSION=$FLUTTER_VERSION" >> $GITHUB_ENV
           echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
+          
+          echo "Building for Flutter: $FLUTTER_VERSION with tag: $DOCKER_TAG"
 
       - name: Generate Dockerfile
         run: |
           cat <<EOF > Dockerfile
+          # Use a dynamic Flutter version from the config
           ARG FLUTTER_VERSION=${{ env.FLUTTER_VERSION }}
-
           FROM ghcr.io/cirruslabs/flutter:\${FLUTTER_VERSION}
 
-          ENV LC_ALL=C.UTF-8 \\
-              LANG=C.UTF-8 \\
-              ANDROID_SDK_ROOT=/opt/android-sdk-linux \\
-              ANDROID_HOME=/opt/android-sdk-linux \\
-              PATH=\$PATH:\$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:\$ANDROID_SDK_ROOT/platform-tools
+          LABEL org.opencontainers.image.source="https://github.com/${{ github.repository }}"
+          LABEL org.opencontainers.image.description="Flutter and Fastlane build environment"
 
-          RUN apt-get update && apt-get install -y --no-install-recommends ruby ruby-dev git wget unzip ca-certificates curl xz-utils zip
-          RUN apt-get install -y --no-install-recommends openjdk-17-jre-headless
-          RUN gem install fastlane -NV
-          RUN rm -rf /var/lib/apt/lists/*
+          ENV LC_ALL=C.UTF-8 \
+              LANG=C.UTF-8 \
+              ANDROID_SDK_ROOT=/opt/android-sdk-linux \
+              ANDROID_HOME=/opt/android-sdk-linux \
+              PATH=\$PATH:\$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:\$ANDROID_SDK_ROOT/platform-tools \
+              DEBIAN_FRONTEND=noninteractive
 
-          RUN yes | sdkmanager --licenses && \\
-              sdkmanager --install \\
-                  "platform-tools" \\
-                  "build-tools;36.1.0" \\
-                  "platforms;android-36.1" \\
-                  "cmake;3.22.1" \\
-                  "ndk;27.0.12077973"
-
-          RUN flutter config --no-analytics && flutter precache --android --ios --no-web
-          RUN rm -rf /root/.cache /usr/share/doc /usr/share/man /tmp/* /var/tmp/*
+          # Consolidate installations and cleanup to reduce image size
+          RUN apt-get update && \
+              apt-get install -y --no-install-recommends \
+                  ruby ruby-dev git wget unzip ca-certificates curl xz-utils zip \
+                  openjdk-17-jre-headless && \
+              gem install fastlane -NV && \
+              # Install Android components
+              yes | sdkmanager --licenses && \
+              sdkmanager --install \
+                  "platform-tools" \
+                  "build-tools;35.0.0" \
+                  "platforms;android-35" \
+                  "cmake;3.22.1" \
+                  "ndk;27.0.12077973" && \
+              # Flutter configuration
+              flutter config --no-analytics && \
+              flutter precache --android --ios --no-web && \
+              # Final cleanup
+              apt-get clean && \
+              rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache /usr/share/doc /usr/share/man
 
           WORKDIR /app
           CMD ["bash"]
