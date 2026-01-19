@@ -143,12 +143,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Update docker_config.json
-          echo "{\"flutter_version\": \"${{ env.FLUTTER_VERSION }}\", \"docker_tag\": \"${{ env.DOCKER_TAG }}\"}" > docker_config.json
-          git add docker_config.json
-          git commit -m "Auto-release: ${{ env.DOCKER_TAG }}"
-          git push
-          
-          # Tag and push
+          # Tag and push (No code commits needed!)
           git tag -a "v${{ env.DOCKER_TAG }}" -m "Auto-release ${{ env.DOCKER_TAG }}"
           git push origin "v${{ env.DOCKER_TAG }}"
