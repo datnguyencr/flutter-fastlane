@@ -5,7 +5,7 @@ on:
     tags:
       - 'v*.*.*'
   schedule:
-    - cron: '0 0 * * *' # Every day at midnight
+    - cron: '0 0 * * 1'
   workflow_dispatch: # Allow manual trigger
     inputs:
       version:
